@@ -20,7 +20,7 @@ from collections import namedtuple
 from sawtooth_validator.protobuf.consensus_pb2 import ConsensusPeerMessage
 from sawtooth_validator.protobuf.consensus_pb2 import \
     ConsensusPeerMessageHeader
-
+from sawtooth_validator.gossip.gossip import PeerStatus
 
 class UnknownBlock(Exception):
     """The given block could not be found."""
@@ -147,7 +147,16 @@ class ConsensusProxy:
     # Using blockstore and state database
     def blocks_get(self, block_ids):
         '''Returns a list of blocks.'''
-        return self._get_blocks(block_ids)
+        try:
+            return self._get_blocks(block_ids)
+        except UnknownBlock:
+            peers = self._gossip.get_peers()
+            peered_connections = [conn_id for conn_id in peers
+                                  if self._gossip.get_connection_status(conn_id) == PeerStatus.PEER]
+            for peer_id in peered_connections:
+                for block_id in block_ids:
+                    self._gossip.send_block_request(block_id.hex(), peer_id)
+            raise UnknownBlock()
 
     def chain_head_get(self):
         '''Returns the chain head.'''
