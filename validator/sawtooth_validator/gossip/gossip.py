@@ -716,7 +716,7 @@ class ConnectionManager(InstrumentedThread):
         try:
             return self._connection_statuses[connection_id]
         except KeyError:
-            None
+            return None
 
     def remove_temp_endpoint(self, endpoint):
         with self._lock:

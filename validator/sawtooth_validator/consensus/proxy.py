@@ -149,14 +149,14 @@ class ConsensusProxy:
         '''Returns a list of blocks.'''
         try:
             return self._get_blocks(block_ids)
-        except UnknownBlock:
+        except UnknownBlock as e:
             peers = self._gossip.get_peers()
             peered_connections = [conn_id for conn_id in peers
                                   if self._gossip.get_connection_status(conn_id) == PeerStatus.PEER]
             for peer_id in peered_connections:
                 for block_id in block_ids:
                     self._gossip.send_block_request(block_id.hex(), peer_id)
-            raise UnknownBlock()
+            raise e
 
     def chain_head_get(self):
         '''Returns the chain head.'''
