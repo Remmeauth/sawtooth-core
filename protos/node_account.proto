@@ -1,0 +1,70 @@
+// Copyright 2018 REMME
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+// ------------------------------------------------------------------------
+
+syntax = "proto3";
+
+message NodeAccount {
+    enum NodeState {
+        NEW = 0;
+        OPENED = 1;
+        CLOSED = 2;
+    }
+    NodeState node_state = 1;
+
+    uint64 balance = 2;
+
+    message Reputation {
+        uint64 frozen = 1;
+        uint64 unfrozen = 2;
+    }
+
+    Reputation reputation = 3;
+    oneof bet {
+        uint64 fixed_amount = 4;
+        bool min = 5;
+        bool max = 6;
+    }
+}
+
+message NodeState {
+    repeated string master_nodes = 1;
+}
+
+message NodeAccountMethod {
+    enum Method {
+        TRANSFER_FROM_FROZEN_TO_UNFROZEN = 0;
+        TRANSFER_FROM_UNFROZEN_TO_OPERATIONAL = 1;
+        INITIALIZE_MASTERNODE = 2;
+        CLOSE_MASTERNODE = 3;
+        GENESIS_NODE = 4;
+        SET_BET = 5;
+        DO_BET = 6;
+    }
+}
+
+message NodeAccountInternalTransferPayload {
+    uint64 value = 1;
+}
+
+message CloseMasternodePayload {
+}
+
+message SetBetPayload {
+    oneof bet {
+        uint64 fixed_amount = 1;
+        bool min = 2;
+        bool max = 3;
+    }
+}
