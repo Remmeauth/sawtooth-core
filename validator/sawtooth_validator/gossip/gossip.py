@@ -440,6 +440,12 @@ class Gossip:
                 pass
         if self._topology:
             self._topology.stop()
+    
+    def get_connection_status(self, connection_id):
+        if self._topology:
+            return self._topology.get_connection_status(connection_id)
+        else:
+            return None
 
 
 class ConnectionManager(InstrumentedThread):
@@ -705,6 +711,12 @@ class ConnectionManager(InstrumentedThread):
 
     def set_connection_status(self, connection_id, status):
         self._connection_statuses[connection_id] = status
+    
+    def get_connection_status(self, connection_id):
+        try:
+            return self._connection_statuses[connection_id]
+        except KeyError:
+            return None
 
     def remove_temp_endpoint(self, endpoint):
         with self._lock:
