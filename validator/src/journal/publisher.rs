@@ -382,11 +382,10 @@ impl SyncBlockPublisher {
 
         if let Some(previous_block) = state.candidate_block.as_ref().map(|candidate| {
             self.get_block(&candidate.previous_block_id())
-                .expect("Failed to get previous block, but we are building on it.")
         }) {
-            self.cancel_block(state, false);
+            self.cancel_block(state);
 
-            if let Err(err) = self.initialize_block(state, &previous_block, false) {
+            if let Err(err) = self.initialize_block(state, &previous_block) {
                 error!("Initialization failed unexpectedly: {:?}", err);
             }
         }
@@ -483,7 +482,7 @@ impl SyncBlockPublisher {
         }
     }
 
-    fn cancel_block(&self, state: &mut BlockPublisherState, unref_block: bool) {
+    fn cancel_block(&self, state: &mut BlockPublisherState) {
         state.purge_invalid_txns();
 
         let mut candidate_block = None;
