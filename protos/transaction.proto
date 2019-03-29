@@ -71,3 +71,12 @@ message Transaction {
 message TransactionList {
     repeated Transaction transactions = 1;
 }
+
+
+message TransactionPayload {
+    uint32 method = 1;
+    bytes data = 2;
+}
+
+
+message EmptyPayload {}
