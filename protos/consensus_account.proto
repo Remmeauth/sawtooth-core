@@ -1,0 +1,36 @@
+// Copyright 2018 REMME
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+// ------------------------------------------------------------------------
+
+syntax = "proto3";
+
+message ConsensusAccountMethod {
+    enum Method {
+        SEND_REWARD = 0;
+    }
+}
+
+message ConsensusAccount {
+    // genesis public key
+    string public_key = 1;
+    // obligatory payments of all participants of consensus
+    uint64 obligatory_payments = 2;
+    // all fees and payments in block
+    uint64 block_cost = 3;
+    // all bets (for now only 1 should be)
+    // where
+    //     key   - address of node that send and commit allowance transaction
+    //     value - allowed value
+    map<string, uint64> bets = 4;
+}

@@ -89,5 +89,11 @@ class DefaultBatchInjectorFactory:
 
             return block_info_injector.BlockInfoInjector(
                 self._state_view_factory, self._signer)
+        elif injector == "remme_batches":
+            remme_batch_injector = importlib.import_module(
+                "sawtooth_validator.journal.remme_batch_injector")
+
+            return remme_batch_injector.RemmeBatchInjector(
+                self._state_view_factory, self._signer)
 
         raise UnknownBatchInjectorError(injector)
