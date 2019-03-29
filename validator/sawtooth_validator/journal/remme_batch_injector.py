@@ -34,10 +34,8 @@ def hash512(data):
     ).hexdigest()
 
 
-FAMILY_NAME = "obligatory_payment"
-FAMILY_VERSIONS = ["0.1"]
-FAMILY_ACCOUNT = "node_account"
 NODE_STATE_ADDRESS = "0" * 69 + "2"
+ZERO_ADRESS = "0" * 70
 CONSENSUS_ADDRESS = hash512("consensus_account")[:6] + "0" * 64
 
 SETTINGS_OBLIGATORY_PAYMENT = "remme.settings.obligatory_payment"
@@ -50,8 +48,7 @@ NAMESPACE = '00b10c'
 CONFIG_ADDRESS = NAMESPACE + '01' + '0' * 62
 BLOCK_INFO_NAMESPACE = NAMESPACE + '00'
 
-
-family_account_prefix = hash512(FAMILY_ACCOUNT)[:6]
+family_account_prefix = hash512("node_account")[:6]
 
 
 class RemmeBatchInjector(BatchInjector):
@@ -75,7 +72,7 @@ class RemmeBatchInjector(BatchInjector):
         method = ObligatoryPaymentMethod.PAY_OBLIGATORY_PAYMENT
         payload = ObligatoryPaymentPayload()
 
-        return self._create_batch(inputs, outputs, method, payload)
+        return self._create_batch(inputs, outputs, method, payload, "obligatory_payment", "0.1")
 
     def create_do_bet_batch(self):
         inputs = [family_account_prefix, NODE_STATE_ADDRESS, CONSENSUS_ADDRESS]
@@ -83,7 +80,7 @@ class RemmeBatchInjector(BatchInjector):
         method = NodeAccountMethod.DO_BET
         payload = NodeAccountInternalTransferPayload()
 
-        return self._create_batch(inputs, outputs, method, payload)
+        return self._create_batch(inputs, outputs, method, payload, "node_account", "0.1")
 
     def create_pay_reward_batch(self):
         inputs = [
@@ -98,33 +95,30 @@ class RemmeBatchInjector(BatchInjector):
             CONFIG_ADDRESS,
             BLOCK_INFO_NAMESPACE,
 
-            CONSENSUS_ADDRESS
+            CONSENSUS_ADDRESS,
+            ZERO_ADRESS,
         ]
         outputs = [
             family_account_prefix,
             hash512("account")[:6],
             CONSENSUS_ADDRESS,
+            ZERO_ADRESS,
         ]
         method = ConsensusAccountMethod.SEND_REWARD
         payload = EmptyPayload()
 
-        return self._create_batch(inputs, outputs, method, payload)
+        return self._create_batch(inputs, outputs, method, payload, "consensus_account", "0.1")
 
     def get_block_start_batch_list_methods(self):
         """Methods which required to be executed in batch injector at block start
         """
         yield from [
+            self.create_pay_reward_batch,
             self.create_obligatory_payment_batch,
             # TODO: Enable when feature will be ready
             # self.create_do_bet_batch,
         ]
 
-    def get_block_end_batch_list_methods(self):
-        """Methods which required to be executed in batch injector at block end
-        """
-        yield from [
-            self.create_pay_reward_batch,
-        ]
 
     def block_start(self, previous_block):
         """Returns an ordered list of batches to inject at the beginning of the
@@ -147,12 +141,9 @@ class RemmeBatchInjector(BatchInjector):
         pass
 
     def block_end(self, previous_block, batches):
-        return [
-            batch_method()
-            for batch_method in self.get_block_end_batch_list_methods()
-        ]
+        pass
 
-    def _create_batch(self, inputs, outputs, method, payload):
+    def _create_batch(self, inputs, outputs, method, payload, family_name, family_version):
         transaction_payload = TransactionPayload()
         transaction_payload.method = method
         transaction_payload.data = payload.SerializeToString()
@@ -161,8 +152,8 @@ class RemmeBatchInjector(BatchInjector):
 
         header = TransactionHeader(
             signer_public_key=self.public_key,
-            family_name=FAMILY_NAME,
-            family_version=FAMILY_VERSIONS[0],
+            family_name=family_name,
+            family_version=family_version,
             inputs=inputs,
             outputs=outputs,
             dependencies=[],
