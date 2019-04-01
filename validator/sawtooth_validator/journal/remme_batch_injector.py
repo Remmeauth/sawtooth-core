@@ -43,6 +43,7 @@ SETTINGS_MINIMUM_STAKE = 'remme.settings.minimum_stake'
 SETTINGS_COMMITTEE_SIZE = 'remme.settings.committee_size'
 SETTINGS_BLOCKCHAIN_TAX = 'remme.settings.blockchain_tax'
 SETTINGS_MIN_SHARE = 'remme.settings.min_share'
+SETTINGS_GENESIS_OWNERS = 'remme.settings.genesis_owners'
 
 NAMESPACE = '00b10c'
 CONFIG_ADDRESS = NAMESPACE + '01' + '0' * 62
@@ -75,12 +76,18 @@ class RemmeBatchInjector(BatchInjector):
         return self._create_batch(inputs, outputs, method, payload, "obligatory_payment", "0.1")
 
     def create_do_bet_batch(self):
-        inputs = [family_account_prefix, NODE_STATE_ADDRESS, CONSENSUS_ADDRESS, ZERO_ADRESS]
+        inputs = [
+            family_account_prefix,
+            NODE_STATE_ADDRESS,
+            CONSENSUS_ADDRESS,
+            ZERO_ADRESS,
+            SettingsView.setting_address(SETTINGS_GENESIS_OWNERS)
+        ]
         outputs = inputs
         method = NodeAccountMethod.DO_BET
         payload = NodeAccountInternalTransferPayload()
 
-        return self._create_batch(inputs, outputs, method, payload, "node_account", "0.1")
+        return self._create_batch(inputs, outputs, method, payload, "bet", "0.1")
 
     def create_pay_reward_batch(self):
         inputs = [
