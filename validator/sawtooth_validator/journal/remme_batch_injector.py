@@ -75,7 +75,7 @@ class RemmeBatchInjector(BatchInjector):
         return self._create_batch(inputs, outputs, method, payload, "obligatory_payment", "0.1")
 
     def create_do_bet_batch(self):
-        inputs = [family_account_prefix, NODE_STATE_ADDRESS, CONSENSUS_ADDRESS]
+        inputs = [family_account_prefix, NODE_STATE_ADDRESS, CONSENSUS_ADDRESS, ZERO_ADRESS]
         outputs = inputs
         method = NodeAccountMethod.DO_BET
         payload = NodeAccountInternalTransferPayload()
@@ -115,8 +115,7 @@ class RemmeBatchInjector(BatchInjector):
         yield from [
             self.create_pay_reward_batch,
             self.create_obligatory_payment_batch,
-            # TODO: Enable when feature will be ready
-            # self.create_do_bet_batch,
+            self.create_do_bet_batch,
         ]
 
 
