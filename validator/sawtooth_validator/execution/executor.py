@@ -156,14 +156,7 @@ class TransactionExecutorThread:
                 req.header.family_version)
 
             # FIXME address related errors are logical, not internal
-            if "address" not in response.message and "Address" not in response.message:
-                # Make sure that the transaction wasn't unscheduled in the interim
-                if self._scheduler.is_transaction_in_schedule(req.signature):
-                    self._execute(
-                        processor_type=processor_type,
-                        content=request,
-                        signature=req.signature)
-            else:
+            if "address" in response.message or "Address" in response.message:
                 self._context_manager.delete_contexts(
                     context_id_list=[req.context_id])
 
@@ -172,6 +165,13 @@ class TransactionExecutorThread:
                     context_id=req.context_id,
                     error_message=response.message,
                     error_data=response.extended_data)
+            else:
+                # Make sure that the transaction wasn't unscheduled in the interim
+                if self._scheduler.is_transaction_in_schedule(req.signature):
+                    self._execute(
+                        processor_type=processor_type,
+                        content=request,
+                        signature=req.signature)
 
         else:
             self._context_manager.delete_contexts(
