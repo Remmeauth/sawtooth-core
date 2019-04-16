@@ -44,6 +44,7 @@ SETTINGS_COMMITTEE_SIZE = 'remme.settings.committee_size'
 SETTINGS_BLOCKCHAIN_TAX = 'remme.settings.blockchain_tax'
 SETTINGS_MIN_SHARE = 'remme.settings.min_share'
 SETTINGS_GENESIS_OWNERS = 'remme.settings.genesis_owners'
+SETTINGS_UNFREEZE_BONUS = 'remme.settings.unfreeze_bonus'
 
 NAMESPACE = '00b10c'
 CONFIG_ADDRESS = NAMESPACE + '01' + '0' * 62
@@ -95,9 +96,9 @@ class RemmeBatchInjector(BatchInjector):
             hash512("account")[:6],
 
             SettingsView.setting_address(SETTINGS_MINIMUM_STAKE),
-            SettingsView.setting_address(SETTINGS_COMMITTEE_SIZE),
             SettingsView.setting_address(SETTINGS_BLOCKCHAIN_TAX),
             SettingsView.setting_address(SETTINGS_MIN_SHARE),
+            SettingsView.setting_address(SETTINGS_UNFREEZE_BONUS),
 
             CONFIG_ADDRESS,
             BLOCK_INFO_NAMESPACE,
