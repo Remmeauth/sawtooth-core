@@ -40,7 +40,6 @@ CONSENSUS_ADDRESS = hash512("consensus_account")[:6] + "0" * 64
 
 SETTINGS_OBLIGATORY_PAYMENT = "remme.settings.obligatory_payment"
 SETTINGS_MINIMUM_STAKE = 'remme.settings.minimum_stake'
-SETTINGS_COMMITTEE_SIZE = 'remme.settings.committee_size'
 SETTINGS_BLOCKCHAIN_TAX = 'remme.settings.blockchain_tax'
 SETTINGS_MIN_SHARE = 'remme.settings.min_share'
 SETTINGS_GENESIS_OWNERS = 'remme.settings.genesis_owners'
