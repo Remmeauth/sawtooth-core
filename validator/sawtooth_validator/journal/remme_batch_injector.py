@@ -80,7 +80,6 @@ class RemmeBatchInjector(BatchInjector):
             family_account_prefix,
             NODE_STATE_ADDRESS,
             CONSENSUS_ADDRESS,
-            ZERO_ADRESS,
             SettingsView.setting_address(SETTINGS_GENESIS_OWNERS)
         ]
         outputs = inputs
@@ -103,13 +102,11 @@ class RemmeBatchInjector(BatchInjector):
             BLOCK_INFO_NAMESPACE,
 
             CONSENSUS_ADDRESS,
-            ZERO_ADRESS,
         ]
         outputs = [
             family_account_prefix,
             hash512("account")[:6],
             CONSENSUS_ADDRESS,
-            ZERO_ADRESS,
         ]
         method = ConsensusAccountMethod.SEND_REWARD
         payload = EmptyPayload()
