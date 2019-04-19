@@ -111,6 +111,15 @@ class RemmeBatchInjector(BatchInjector):
 
         return self._create_batch(inputs, outputs, method, payload, "consensus_account", "0.1")
 
+    def get_block_start_batch_list_methods(self):
+        """Methods which required to be executed in batch injector at block start
+        """
+        yield from [
+            self.create_pay_reward_batch,
+            self.create_obligatory_payment_batch,
+            self.create_do_bet_batch,
+        ]
+
 
     def block_start(self, previous_block):
         """Returns an ordered list of batches to inject at the beginning of the
@@ -122,8 +131,8 @@ class RemmeBatchInjector(BatchInjector):
         """
         block_info_injector = BlockInfoInjector(self._state_view_factory, self._signer)
         return block_info_injector.block_start(previous_block) + [
-            self.create_pay_reward_batch(),
-            self.create_obligatory_payment_batch(),
+            batch_method()
+            for batch_method in self.get_block_start_batch_list_methods()
         ]
 
     def before_batch(self, previous_block, batch):
@@ -133,7 +142,7 @@ class RemmeBatchInjector(BatchInjector):
         pass
 
     def block_end(self, previous_block, batches):
-        return [self.create_do_bet_batch()]
+        pass
 
     def _create_batch(self, inputs, outputs, method, payload, family_name, family_version):
         transaction_payload = TransactionPayload()
