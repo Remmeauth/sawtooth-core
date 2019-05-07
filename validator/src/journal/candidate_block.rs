@@ -34,6 +34,7 @@ use journal::validation_rule_enforcer;
 use pylogger;
 
 use scheduler::Scheduler;
+use super::publisher::PendingBatchesPool;
 
 #[derive(Debug)]
 pub enum CandidateBlockError {
@@ -116,6 +117,10 @@ impl CandidateBlock {
 
     pub fn last_batch(&self) -> Option<&Batch> {
         self.pending_batches.last()
+    }
+
+    pub fn get_pending_batches_count(&self) -> usize {
+        self.pending_batches.len()
     }
 
     pub fn can_add_batch(&self) -> bool {
@@ -235,106 +240,93 @@ impl CandidateBlock {
             self.pending_batches.push(b.clone());
             self.pending_batch_ids.insert(batch_id.clone());
 
-             let injected = self.injected_batch_ids.contains(batch_id.as_str());
+            let injected = self.injected_batch_ids.contains(batch_id.as_str());
 
-             self.scheduler.add_batch(b, None, injected).unwrap()
+            println!("Is injected?: {}", injected);
+            println!("Schedule batch hash: {:?}", batch_id.as_str());
+            println!("Injected batches: {:?}", self.injected_batch_ids.clone());
+
+            self.scheduler.add_batch(b, None, injected).unwrap()
         }
     }
 
     pub fn add_batch(&mut self, batch: Batch) {
         let batch_header_signature = batch.header_signature.clone();
 
-        if batch.trace {
-            debug!(
-                "TRACE {}: {}",
-                batch_header_signature.as_str(),
-                "CandidateBlock, add_batch"
-            );
-        }
-
-        let gil = cpython::Python::acquire_gil();
-        let py = gil.python();
+        println!(
+            "TRACE {}: {}",
+            batch_header_signature.as_str(),
+            "CandidateBlock, add_batch"
+        );
 
         if self.batch_is_already_committed(&batch) {
-            debug!(
+            println!(
                 "Dropping previously committed batch: {}",
                 batch_header_signature.as_str()
             );
-            return;
         } else if self.check_batch_dependencies_add_batch(&batch) {
-            let mut batches_to_add = vec![];
-
-            // Inject blocks at the beginning of a Candidate Block
-            if self.pending_batches.is_empty() {
-                let previous_block = self.previous_block.clone();
-                let mut injected_batches = self.poll_injectors(|injector: &cpython::PyObject| {
-                    match injector
-                        .call_method(py, "block_start", (previous_block.clone(),), None)
-                        .expect("BlockInjector.block_start failed")
-                        .extract::<cpython::PyList>(py)
-                    {
-                        Ok(injected) => injected.iter(py).collect(),
-                        Err(err) => {
-                            pylogger::exception(
-                                py,
-                                "During block injection, calling block_start",
-                                err,
-                            );
-                            vec![]
-                        }
-                    }
-                });
-                batches_to_add.append(&mut injected_batches);
-            }
-            batches_to_add.push(batch);
-
-            let pending_batches = self.pending_batches.clone();
-
-            // Inject blocks at the end of a Candidate Block
-            if !self.pending_batches.is_empty() {
-                let previous_block = self.previous_block.clone();
-                let mut injected_batches = self.poll_injectors(|injector: &cpython::PyObject| {
-                    match injector
-                        .call_method(py, "block_end", (previous_block.clone(), pending_batches.clone()), None)
-                        .expect("BlockInjector.block_end failed")
-                        .extract::<cpython::PyList>(py)
-                    {
-                        Ok(injected) => injected.iter(py).collect(),
-                        Err(err) => {
-                            pylogger::exception(
-                                py,
-                                "During block injection, calling block_end",
-                                err,
-                            );
-                            vec![]
-                        }
-                    }
-                });
-                batches_to_add.append(&mut injected_batches);
-            }
-
-            {
-                let batches_to_test = self
-                    .pending_batches
-                    .iter()
-                    .chain(batches_to_add.iter())
-                    .collect::<Vec<_>>();
-                if !validation_rule_enforcer::enforce_validation_rules(
-                    &self.settings_view,
-                    &self.get_signer_public_key_hex(),
-                    &batches_to_test,
-                ) {
-                    return;
-                }
-            }
-            self.schedule_batches(batches_to_add);
-
+            self.schedule_batches(vec![batch]);
         } else {
-            debug!(
+            println!(
                 "Dropping batch due to missing dependencies: {}",
                 batch_header_signature.as_str()
             );
         }
+    }
+
+    pub fn inject_block_start(&mut self) {
+        let injected_batches = {
+            let gil = Python::acquire_gil();
+            let py = gil.python();
+            let previous_block = self.previous_block.clone();
+
+            self.poll_injectors(|injector: &cpython::PyObject| {
+                match injector
+                    .call_method(py, "block_start", (previous_block.clone(),), None)
+                    .expect("BlockInjector.block_start failed")
+                    .extract::<cpython::PyList>(py)
+                {
+                    Ok(injected) => injected.iter(py).collect(),
+                    Err(err) => {
+                        pylogger::exception(
+                            py,
+                            "During block injection, calling block_start",
+                            err,
+                        );
+                        vec![]
+                    }
+                }
+            })
+        };
+        self.schedule_batches(injected_batches);
+    }
+
+    pub fn inject_block_end(&mut self) {
+        let injected_batches = {
+            let gil = Python::acquire_gil();
+            let py = gil.python();
+            let previous_block = self.previous_block.clone();
+            let pending_batches = self.pending_batches.clone();
+
+            self.poll_injectors(|injector: &cpython::PyObject| {
+                match injector
+                    .call_method(py, "block_end", (previous_block.clone(), pending_batches.clone()), None)
+                    .expect("BlockInjector.block_end failed")
+                    .extract::<cpython::PyList>(py)
+                {
+                    Ok(injected) => injected.iter(py).collect(),
+                    Err(err) => {
+                        pylogger::exception(
+                            py,
+                            "During block injection, calling block_end",
+                            err,
+                        );
+                        vec![]
+                    }
+                }
+            })
+        };
+        self.schedule_batches(injected_batches);
     }
 
     fn get_signer_public_key_hex(&self) -> String {
