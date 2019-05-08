@@ -265,7 +265,13 @@ impl CandidateBlock {
                 batch_header_signature.as_str()
             );
         } else if self.check_batch_dependencies_add_batch(&batch) {
+            if self.pending_batches.is_empty() {
+                println!("pending batches count before start: {}", self.get_pending_batches_count());
+                self.inject_block_start();
+                println!("pending batches count after block_start injection: {}", self.get_pending_batches_count());
+            }
             self.schedule_batches(vec![batch]);
+            println!("pending batches count after adding batch from pool: {}", self.get_pending_batches_count());
         } else {
             println!(
                 "Dropping batch due to missing dependencies: {}",
@@ -274,7 +280,7 @@ impl CandidateBlock {
         }
     }
 
-    pub fn inject_block_start(&mut self) {
+    fn inject_block_start(&mut self) {
         let injected_batches = {
             let gil = Python::acquire_gil();
             let py = gil.python();
@@ -301,7 +307,7 @@ impl CandidateBlock {
         self.schedule_batches(injected_batches);
     }
 
-    pub fn inject_block_end(&mut self) {
+    fn inject_block_end(&mut self) {
         let injected_batches = {
             let gil = Python::acquire_gil();
             let py = gil.python();
@@ -367,6 +373,12 @@ impl CandidateBlock {
         if !(force || !self.pending_batches.is_empty()) {
             return Err(CandidateBlockError::BlockEmpty);
         }
+        if !self.pending_batches.is_empty() {
+            self.inject_block_end();
+            println!("pending batches count after block_end injection: {}", self.get_pending_batches_count());
+        } else {
+            println!("got empty pool")
+        }
 
         self.scheduler.finalize(true).unwrap();
         let execution_results = self.scheduler.complete(true).unwrap().unwrap();
@@ -401,6 +413,8 @@ impl CandidateBlock {
 
         let mut bad_batches = vec![];
         let mut pending_batches = vec![];
+
+        println!("pending batches count before update: {}", pending_batches.len());
 
         for batch in self.pending_batches.clone() {
             let header_signature = &batch.header_signature.clone();
@@ -451,6 +465,9 @@ impl CandidateBlock {
                 debug!("Batch {} invalid, not added to block", header_signature);
             }
         }
+
+        println!("pending batches count after filter: {}", self.get_pending_batches_count());
+        println!("pending batches count that was refreshed: {}", pending_batches.len());
 
         if self.injected_batch_ids == valid_batch_ids {
             // There only injected batches in this block
@@ -516,6 +533,8 @@ impl CandidateBlock {
 
         self.sign_block(builder);
 
+        println!("pending batches at finalize: {}", self.get_pending_batches_count());
+        println!("remaining batches at finalize: {}", self.remaining_batches.len());
         self.build_result(Some(
             builder
                 .call_method(py, "build_block", cpython::NoArgs, None)

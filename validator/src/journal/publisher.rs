@@ -314,8 +314,6 @@ impl SyncBlockPublisher {
                 settings_view,
             )
         };
-        println!("pending batches count at start: {}", candidate_block.get_pending_batches_count());
-        candidate_block.inject_block_start();
         for batch in state.pending_batches.iter() {
             if candidate_block.can_add_batch() {
                 candidate_block.add_batch(batch.clone());
@@ -323,8 +321,6 @@ impl SyncBlockPublisher {
                 break;
             }
         }
-        candidate_block.inject_block_end();
-        println!("pending batches count at end: {}", candidate_block.get_pending_batches_count());
         state.candidate_block = Some(candidate_block);
 
         Ok(())
