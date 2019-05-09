@@ -117,9 +117,14 @@ class RemmeBatchInjector(BatchInjector):
         yield from [
             self.create_pay_reward_batch,
             self.create_obligatory_payment_batch,
-            self.create_do_bet_batch,
         ]
 
+    def get_block_end_batch_list_methods(self):
+        """Methods which required to be executed in batch injector at block end
+        """
+        yield from [
+            self.create_do_bet_batch,
+        ]
 
     def block_start(self, previous_block):
         """Returns an ordered list of batches to inject at the beginning of the
@@ -142,7 +147,8 @@ class RemmeBatchInjector(BatchInjector):
         pass
 
     def block_end(self, previous_block, batches):
-        pass
+        return [batch_method()
+                for batch_method in self.get_block_end_batch_list_methods()]
 
     def _create_batch(self, inputs, outputs, method, payload, family_name, family_version):
         transaction_payload = TransactionPayload()

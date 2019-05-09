@@ -314,7 +314,6 @@ impl SyncBlockPublisher {
                 settings_view,
             )
         };
-
         for batch in state.pending_batches.iter() {
             if candidate_block.can_add_batch() {
                 candidate_block.add_batch(batch.clone());

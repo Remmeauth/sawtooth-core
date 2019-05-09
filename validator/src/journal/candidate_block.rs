@@ -34,6 +34,7 @@ use journal::validation_rule_enforcer;
 use pylogger;
 
 use scheduler::Scheduler;
+use super::publisher::PendingBatchesPool;
 
 #[derive(Debug)]
 pub enum CandidateBlockError {
@@ -116,6 +117,10 @@ impl CandidateBlock {
 
     pub fn last_batch(&self) -> Option<&Batch> {
         self.pending_batches.last()
+    }
+
+    pub fn get_pending_batches_count(&self) -> usize {
+        self.pending_batches.len()
     }
 
     pub fn can_add_batch(&self) -> bool {
@@ -229,83 +234,105 @@ impl CandidateBlock {
         batches
     }
 
+    fn schedule_batches(&mut self, batches: Vec<Batch>) {
+        for b in batches {
+            let batch_id = b.header_signature.clone();
+            self.pending_batches.push(b.clone());
+            self.pending_batch_ids.insert(batch_id.clone());
+
+            let injected = self.injected_batch_ids.contains(batch_id.as_str());
+
+            println!("Is injected?: {}", injected);
+            println!("Schedule batch hash: {:?}", batch_id.as_str());
+            println!("Injected batches: {:?}", self.injected_batch_ids.clone());
+
+            self.scheduler.add_batch(b, None, injected).unwrap()
+        }
+    }
+
     pub fn add_batch(&mut self, batch: Batch) {
         let batch_header_signature = batch.header_signature.clone();
 
-        if batch.trace {
-            debug!(
-                "TRACE {}: {}",
-                batch_header_signature.as_str(),
-                "CandidateBlock, add_batch"
-            );
-        }
+        println!(
+            "TRACE {}: {}",
+            batch_header_signature.as_str(),
+            "CandidateBlock, add_batch"
+        );
 
         if self.batch_is_already_committed(&batch) {
-            debug!(
+            println!(
                 "Dropping previously committed batch: {}",
                 batch_header_signature.as_str()
             );
-            return;
         } else if self.check_batch_dependencies_add_batch(&batch) {
-            let mut batches_to_add = vec![];
-
-            // Inject blocks at the beginning of a Candidate Block
             if self.pending_batches.is_empty() {
-                let previous_block = self.previous_block.clone();
-                let mut injected_batches = self.poll_injectors(|injector: &cpython::PyObject| {
-                    let gil = cpython::Python::acquire_gil();
-                    let py = gil.python();
-                    match injector
-                        .call_method(py, "block_start", (previous_block.clone(),), None)
-                        .expect("BlockInjector.block_start failed")
-                        .extract::<cpython::PyList>(py)
-                    {
-                        Ok(injected) => injected.iter(py).collect(),
-                        Err(err) => {
-                            pylogger::exception(
-                                py,
-                                "During block injection, calling block_start",
-                                err,
-                            );
-                            vec![]
-                        }
-                    }
-                });
-                batches_to_add.append(&mut injected_batches);
+                println!("pending batches count before start: {}", self.get_pending_batches_count());
+                self.inject_block_start();
+                println!("pending batches count after block_start injection: {}", self.get_pending_batches_count());
             }
-
-            batches_to_add.push(batch);
-
-            {
-                let batches_to_test = self
-                    .pending_batches
-                    .iter()
-                    .chain(batches_to_add.iter())
-                    .collect::<Vec<_>>();
-                if !validation_rule_enforcer::enforce_validation_rules(
-                    &self.settings_view,
-                    &self.get_signer_public_key_hex(),
-                    &batches_to_test,
-                ) {
-                    return;
-                }
-            }
-
-            for b in batches_to_add {
-                let batch_id = b.header_signature.clone();
-                self.pending_batches.push(b.clone());
-                self.pending_batch_ids.insert(batch_id.clone());
-
-                let injected = self.injected_batch_ids.contains(batch_id.as_str());
-
-                self.scheduler.add_batch(b, None, injected).unwrap()
-            }
+            self.schedule_batches(vec![batch]);
+            println!("pending batches count after adding batch from pool: {}", self.get_pending_batches_count());
         } else {
-            debug!(
+            println!(
                 "Dropping batch due to missing dependencies: {}",
                 batch_header_signature.as_str()
             );
         }
+    }
+
+    fn inject_block_start(&mut self) {
+        let injected_batches = {
+            let gil = Python::acquire_gil();
+            let py = gil.python();
+            let previous_block = self.previous_block.clone();
+
+            self.poll_injectors(|injector: &cpython::PyObject| {
+                match injector
+                    .call_method(py, "block_start", (previous_block.clone(),), None)
+                    .expect("BlockInjector.block_start failed")
+                    .extract::<cpython::PyList>(py)
+                {
+                    Ok(injected) => injected.iter(py).collect(),
+                    Err(err) => {
+                        pylogger::exception(
+                            py,
+                            "During block injection, calling block_start",
+                            err,
+                        );
+                        vec![]
+                    }
+                }
+            })
+        };
+        self.schedule_batches(injected_batches);
+    }
+
+    fn inject_block_end(&mut self) {
+        let injected_batches = {
+            let gil = Python::acquire_gil();
+            let py = gil.python();
+            let previous_block = self.previous_block.clone();
+            let pending_batches = self.pending_batches.clone();
+
+            self.poll_injectors(|injector: &cpython::PyObject| {
+                match injector
+                    .call_method(py, "block_end", (previous_block.clone(), pending_batches.clone()), None)
+                    .expect("BlockInjector.block_end failed")
+                    .extract::<cpython::PyList>(py)
+                {
+                    Ok(injected) => injected.iter(py).collect(),
+                    Err(err) => {
+                        pylogger::exception(
+                            py,
+                            "During block injection, calling block_end",
+                            err,
+                        );
+                        vec![]
+                    }
+                }
+            })
+        };
+        self.schedule_batches(injected_batches);
     }
 
     fn get_signer_public_key_hex(&self) -> String {
@@ -346,6 +373,12 @@ impl CandidateBlock {
         if !(force || !self.pending_batches.is_empty()) {
             return Err(CandidateBlockError::BlockEmpty);
         }
+        if !self.pending_batches.is_empty() {
+            self.inject_block_end();
+            println!("pending batches count after block_end injection: {}", self.get_pending_batches_count());
+        } else {
+            println!("got empty pool")
+        }
 
         self.scheduler.finalize(true).unwrap();
         let execution_results = self.scheduler.complete(true).unwrap().unwrap();
@@ -380,6 +413,8 @@ impl CandidateBlock {
 
         let mut bad_batches = vec![];
         let mut pending_batches = vec![];
+
+        println!("pending batches count before update: {}", pending_batches.len());
 
         for batch in self.pending_batches.clone() {
             let header_signature = &batch.header_signature.clone();
@@ -430,6 +465,9 @@ impl CandidateBlock {
                 debug!("Batch {} invalid, not added to block", header_signature);
             }
         }
+
+        println!("pending batches count after filter: {}", self.get_pending_batches_count());
+        println!("pending batches count that was refreshed: {}", pending_batches.len());
 
         if self.injected_batch_ids == valid_batch_ids {
             // There only injected batches in this block
@@ -495,6 +533,8 @@ impl CandidateBlock {
 
         self.sign_block(builder);
 
+        println!("pending batches at finalize: {}", self.get_pending_batches_count());
+        println!("remaining batches at finalize: {}", self.remaining_batches.len());
         self.build_result(Some(
             builder
                 .call_method(py, "build_block", cpython::NoArgs, None)
