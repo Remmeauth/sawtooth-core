@@ -196,11 +196,15 @@ class Dispatcher(InstrumentedThread):
     def _process(self, message_id):
         message_info = self._message_information[message_id]
 
+        LOGGER.debug("Received a message {} with contents {}".format(message_id, message_info))
+
         try:
             preprocessor = self._preprocessors[message_info.message_type]
         except KeyError:
             self._process_next(message_id)
             return
+
+        LOGGER.debug("Message processors: {}".format(preprocessor))
 
         def do_next(result):
             message_info = self._message_information[message_id]
@@ -282,6 +286,8 @@ class Dispatcher(InstrumentedThread):
             except Exception:  # pylint: disable=broad-except
                 LOGGER.exception(
                     "Unhandled exception while determining next")
+
+        LOGGER.debug("Processing message with content {} and handler {}".format(message_info.content, handler_manager.handler))
 
         handler_manager.execute(
             message_info.connection_id,
