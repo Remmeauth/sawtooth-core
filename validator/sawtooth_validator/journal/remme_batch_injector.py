@@ -66,9 +66,10 @@ class RemmeBatchInjector(BatchInjector):
         inputs = [
             family_account_prefix,
             NODE_STATE_ADDRESS,
+            CONSENSUS_ADDRESS,
             SettingsView.setting_address(SETTINGS_OBLIGATORY_PAYMENT),
         ]
-        outputs = [family_account_prefix]
+        outputs = [family_account_prefix, CONSENSUS_ADDRESS]
         method = ObligatoryPaymentMethod.PAY_OBLIGATORY_PAYMENT
         payload = ObligatoryPaymentPayload()
 
